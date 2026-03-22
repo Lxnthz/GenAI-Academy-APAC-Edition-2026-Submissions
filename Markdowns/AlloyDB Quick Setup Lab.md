@@ -93,9 +93,20 @@ Enter your details for project id, cluster and instance names to get started.
 Setup AlloyDB
 
 ![Setup AlloyDB](../Images/setup-alloydb.png)
+![Deployment Result](../Images/deployment-result.png)
+![Cluster Detail](../Images/cluster-detail.png)
+![Instance Detail](../Images/instance-detail.png)
 
 Go grab a coffee while the logs scroll & you can read about how it's doing this behind the scenes here.
 
 > If you want to test it locally or from anywhere, go to the AlloyDB instance, click "EDIT" and click "Enable Public IP" or "Public IP Connectivity" (not the outbound one) and enter "0.0.0.0/0" in "Authorized External Networks" for development purposes but once done, remove & disable public ip connectivity.
 
 ![AlloyDB Setup Illustration](../Images/alloydb-setup-illustration.png)
+
+## Cleanup
+
+Once this trial lab is done, do not forget to delete alloyDB cluster and instance.
+
+> Go to https://console.cloud.google.com/alloydb/clusters. Select the cluster you want to delete by clicking on the vertical ellipsis next to it and click DELETE.
+
+It should clean up the cluster along with its instance(s).
