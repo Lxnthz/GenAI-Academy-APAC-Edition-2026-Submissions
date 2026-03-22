@@ -9,6 +9,7 @@ This lab focuses on using AI-ready, fully managed database to build and modernis
 **Use Model Context Protocols (MCP) Tools with ADK Agents**
 
 Codelabs 1: [AlloyDB Quick Setup | Google Codelabs](./Markdowns/AlloyDB%20Quick%20Setup%20Lab.md)
+
 Codelabs 2: [Building a Real-Tiem Surplus Engine with Gemini 3 Flash & AlloyDB | Google Codelabs](https://codelabs.developers.google.com/gemini-3-flash-on-alloydb-sustainability-app?hl=en#0)
 
 ## Overview
