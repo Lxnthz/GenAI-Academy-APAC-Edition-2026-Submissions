@@ -107,6 +107,6 @@ Go grab a coffee while the logs scroll & you can read about how it's doing this 
 
 Once this trial lab is done, do not forget to delete alloyDB cluster and instance.
 
-> Go to https://console.cloud.google.com/alloydb/clusters. Select the cluster you want to delete by clicking on the vertical ellipsis next to it and click DELETE.
+> Go to `https://console.cloud.google.com/alloydb/clusters`. Select the cluster you want to delete by clicking on the vertical ellipsis next to it and click DELETE.
 
 It should clean up the cluster along with its instance(s).
