@@ -181,6 +181,22 @@ cd "Projects/Track 3 - Build AI-powered applications using AI-ready databases li
 
 ### 2. Choose execution mode
 
+#### Option 0: One-click provision + deploy (auto random DB password)
+
+```bash
+export PROJECT_ID="your-project-id"
+export REGION="asia-southeast2"
+export SERVICE_NAME="alloydb-nl"
+
+# Optional: override defaults
+# export SEED_LIMIT="5000"
+# export APP_NL_TO_SQL_TEMPLATE="select generated_sql from alloydb_ai_nl('{question}')"
+
+bash scripts/one_click_provision.sh
+```
+
+This mode auto-generates `DB_PASSWORD` if you do not provide one.
+
 #### Option A: Fully automated (provision + configure + seed + deploy)
 
 ```bash

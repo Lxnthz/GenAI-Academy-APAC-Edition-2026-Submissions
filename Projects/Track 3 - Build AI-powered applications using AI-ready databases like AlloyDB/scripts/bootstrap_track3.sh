@@ -7,8 +7,23 @@ set -euo pipefail
 
 AUTO_PROVISION="${AUTO_PROVISION:-false}"
 
+generate_password() {
+  if command -v openssl >/dev/null 2>&1; then
+    openssl rand -base64 24 | tr -d '\n'
+    return
+  fi
+
+  python3 - <<'PY'
+import secrets
+print(secrets.token_urlsafe(24))
+PY
+}
+
 if [[ "${AUTO_PROVISION}" == "true" ]]; then
-  : "${DB_PASSWORD:?Set DB_PASSWORD for auto provisioning}"
+  if [[ -z "${DB_PASSWORD:-}" ]]; then
+    DB_PASSWORD="$(generate_password)"
+    echo "Generated random DB_PASSWORD for auto provisioning."
+  fi
 else
   : "${DB_HOST:?Set DB_HOST}"
   : "${DB_PASSWORD:?Set DB_PASSWORD}"
