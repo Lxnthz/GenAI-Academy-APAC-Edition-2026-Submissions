@@ -37,12 +37,6 @@ def run_sql(sql_text, params=None):
 def seed_database():
     """Create schema and load CSV data on startup if table is empty."""
     try:
-        # Check if table has data
-        result = run_sql("SELECT COUNT(*) as cnt FROM support_tickets")
-        if result and result[0]["cnt"] > 0:
-            print(f"✓ Database already seeded ({result[0]['cnt']} rows)")
-            return
-        
         print("Initializing database schema...")
         
         # Create schema
@@ -103,6 +97,15 @@ def seed_database():
         """
         run_sql(schema_sql)
         print("✓ Schema created")
+        
+        # Check if data already exists
+        try:
+            result = run_sql("SELECT COUNT(*) as cnt FROM support_tickets")
+            if result and result[0]["cnt"] > 0:
+                print(f"✓ Database already seeded ({result[0]['cnt']} rows)")
+                return
+        except:
+            pass  # Table might not have data yet, continue to load
         
         # Load CSV data
         root = Path(__file__).resolve().parents[1]
