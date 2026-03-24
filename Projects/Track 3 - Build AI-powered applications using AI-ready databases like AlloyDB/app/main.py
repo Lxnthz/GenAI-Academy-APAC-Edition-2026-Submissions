@@ -1,5 +1,8 @@
 import os
+import csv
 from contextlib import closing
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from flask import Flask, jsonify, request
 import psycopg
@@ -29,6 +32,250 @@ def run_sql(sql_text, params=None):
                 return cur.fetchall()
             conn.commit()
             return []
+
+
+def seed_database():
+    """Create schema and load CSV data on startup if table is empty."""
+    try:
+        # Check if table has data
+        result = run_sql("SELECT COUNT(*) as cnt FROM support_tickets")
+        if result and result[0]["cnt"] > 0:
+            print(f"✓ Database already seeded ({result[0]['cnt']} rows)")
+            return
+        
+        print("Initializing database schema...")
+        
+        # Create schema
+        schema_sql = """
+        create table if not exists support_tickets (
+          ticket_id bigint primary key,
+          customer_id text not null,
+          created_at timestamptz not null,
+          category text not null,
+          channel text not null,
+          region text not null,
+          priority text not null,
+          status text not null,
+          resolution_time_hours numeric(10,2),
+          customer_sentiment numeric(4,2) not null,
+          subject text not null,
+          body text not null,
+          answer text not null,
+          ticket_type text not null,
+          queue text not null,
+          language text not null,
+          version int,
+          tag_1 text,
+          tag_2 text,
+          tag_3 text,
+          tag_4 text,
+          tag_5 text,
+          tag_6 text,
+          tag_7 text,
+          tag_8 text,
+          urgency_score int generated always as (
+            least(
+              100,
+              greatest(
+                0,
+                (
+                  case priority
+                    when 'critical' then 60
+                    when 'high' then 45
+                    when 'medium' then 25
+                    else 10
+                  end
+                  + case when status <> 'closed' then 20 else 0 end
+                  + case when customer_sentiment < -0.5 then 20 when customer_sentiment < 0 then 10 else 0 end
+                )
+              )
+            )
+          ) stored,
+          urgency_bucket text default 'medium'
+        );
+        
+        create index if not exists idx_support_tickets_created_at on support_tickets (created_at desc);
+        create index if not exists idx_support_tickets_status on support_tickets (status);
+        create index if not exists idx_support_tickets_category on support_tickets (category);
+        create index if not exists idx_support_tickets_region on support_tickets (region);
+        create index if not exists idx_support_tickets_queue on support_tickets (queue);
+        create index if not exists idx_support_tickets_language on support_tickets (language);
+        """
+        run_sql(schema_sql)
+        print("✓ Schema created")
+        
+        # Load CSV data
+        root = Path(__file__).resolve().parents[1]
+        csv_path = root / "data" / "it_support_ticket_en.csv"
+        seed_limit = int(os.environ.get("SEED_LIMIT", "5000"))
+        
+        if not csv_path.exists():
+            print(f"⚠ CSV not found at {csv_path}, skipping data load")
+            return
+        
+        base_dt = datetime(2025, 1, 1, tzinfo=timezone.utc)
+        
+        def norm(value, fallback=""):
+            return (value or fallback).strip()
+        
+        def infer_status(ticket_type, priority):
+            t = ticket_type.lower()
+            p = priority.lower()
+            if t == "request" and p == "low":
+                return "closed"
+            if t == "change":
+                return "pending"
+            return "open"
+        
+        def infer_region(queue_name):
+            q = queue_name.lower()
+            if "billing" in q:
+                return "finance"
+            if "sales" in q:
+                return "sales"
+            if "outage" in q or "maintenance" in q:
+                return "platform"
+            if "technical" in q or "it" in q:
+                return "ops"
+            return "support"
+        
+        def infer_channel(queue_name):
+            q = queue_name.lower()
+            if "technical" in q or "it" in q:
+                return "portal"
+            if "sales" in q:
+                return "email"
+            return "chat"
+        
+        def infer_sentiment(priority):
+            p = priority.lower()
+            if p == "critical":
+                return -0.9
+            if p == "high":
+                return -0.6
+            if p == "medium":
+                return -0.3
+            return -0.1
+        
+        def infer_resolution_hours(status, priority):
+            if status != "closed":
+                return None
+            p = priority.lower()
+            if p == "high":
+                return 8.0
+            if p == "medium":
+                return 16.0
+            return 24.0
+        
+        print(f"Loading CSV from {csv_path}...")
+        with csv_path.open("r", encoding="utf-8", newline="") as f:
+            reader = csv.DictReader(f)
+            rows = []
+            for idx, r in enumerate(reader, start=1):
+                if seed_limit > 0 and idx > seed_limit:
+                    break
+                
+                language = norm(r.get("language"), "en").lower()
+                if language != "en":
+                    continue
+                
+                priority = norm(r.get("priority"), "medium").lower()
+                ticket_type = norm(r.get("type"), "incident")
+                queue_name = norm(r.get("queue"), "Technical Support")
+                status = infer_status(ticket_type, priority)
+                
+                subject = norm(r.get("subject"), "No subject")
+                body = norm(r.get("body"), "")
+                answer = norm(r.get("answer"), "")
+                
+                ticket_id = idx
+                customer_id = f"CUST-{(abs(hash(subject)) % 2000) + 1:04d}"
+                created_at = (base_dt + timedelta(hours=idx * 2)).isoformat()
+                category = ticket_type.lower()
+                channel = infer_channel(queue_name)
+                region = infer_region(queue_name)
+                customer_sentiment = infer_sentiment(priority)
+                resolution_time_hours = infer_resolution_hours(status, priority)
+                
+                version_raw = norm(r.get("version"), "0")
+                version = int(version_raw) if version_raw.isdigit() else None
+                
+                rows.append((
+                    ticket_id,
+                    customer_id,
+                    created_at,
+                    category,
+                    channel,
+                    region,
+                    priority,
+                    status,
+                    resolution_time_hours,
+                    customer_sentiment,
+                    subject,
+                    body,
+                    answer,
+                    ticket_type,
+                    queue_name,
+                    language,
+                    version,
+                    norm(r.get("tag_1")),
+                    norm(r.get("tag_2")),
+                    norm(r.get("tag_3")),
+                    norm(r.get("tag_4")),
+                    norm(r.get("tag_5")),
+                    norm(r.get("tag_6")),
+                    norm(r.get("tag_7")),
+                    norm(r.get("tag_8")),
+                ))
+        
+        if rows:
+            with closing(db_conn()) as conn:
+                with conn.cursor() as cur:
+                    cur.executemany(
+                        """
+                        insert into support_tickets (
+                          ticket_id, customer_id, created_at, category, channel,
+                          region, priority, status, resolution_time_hours, customer_sentiment,
+                          subject, body, answer, ticket_type, queue, language, version,
+                          tag_1, tag_2, tag_3, tag_4, tag_5, tag_6, tag_7, tag_8
+                        )
+                        values (
+                          %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                          %s, %s, %s, %s, %s, %s, %s,
+                          %s, %s, %s, %s, %s, %s, %s, %s
+                        )
+                        on conflict (ticket_id) do update
+                        set customer_id = excluded.customer_id,
+                            created_at = excluded.created_at,
+                            category = excluded.category,
+                            channel = excluded.channel,
+                            region = excluded.region,
+                            priority = excluded.priority,
+                            status = excluded.status,
+                            resolution_time_hours = excluded.resolution_time_hours,
+                            customer_sentiment = excluded.customer_sentiment,
+                            subject = excluded.subject,
+                            body = excluded.body,
+                            answer = excluded.answer,
+                            ticket_type = excluded.ticket_type,
+                            queue = excluded.queue,
+                            language = excluded.language,
+                            version = excluded.version,
+                            tag_1 = excluded.tag_1,
+                            tag_2 = excluded.tag_2,
+                            tag_3 = excluded.tag_3,
+                            tag_4 = excluded.tag_4,
+                            tag_5 = excluded.tag_5,
+                            tag_6 = excluded.tag_6,
+                            tag_7 = excluded.tag_7,
+                            tag_8 = excluded.tag_8
+                        """,
+                        rows,
+                    )
+                conn.commit()
+            print(f"✓ Loaded {len(rows)} rows into support_tickets")
+    except Exception as e:
+        print(f"⚠ Seed warning: {e}")
 
 
 def fallback_sql_from_question(question):
@@ -473,6 +720,15 @@ def query():
                 "error": str(exc),
             }
         ), 500
+
+
+# Seed database on startup
+try:
+    print("Starting database initialization...")
+    seed_database()
+    print("✓ Database initialization complete")
+except Exception as e:
+    print(f"⚠ Database initialization failed: {e}")
 
 
 if __name__ == "__main__":
