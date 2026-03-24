@@ -36,43 +36,14 @@ create table if not exists support_tickets (
             when 'medium' then 25
             else 10
           end
-          + case
-              when status <> 'closed' then 20
-              else 0
-            end
-          + case
-              when customer_sentiment < -0.5 then 20
-              when customer_sentiment < 0 then 10
-              else 0
-            end
+          + case when status <> 'closed' then 20 else 0 end
+          + case when customer_sentiment < -0.5 then 20 when customer_sentiment < 0 then 10 else 0 end
         )
       )
     )
   ) stored,
-  urgency_bucket text generated always as (
-    case
-      when urgency_score >= 70 then 'high'
-      when urgency_score >= 40 then 'medium'
-      else 'low'
-    end
-  ) stored
+  urgency_bucket text default 'medium'
 );
-
-alter table support_tickets add column if not exists subject text;
-alter table support_tickets add column if not exists body text;
-alter table support_tickets add column if not exists answer text;
-alter table support_tickets add column if not exists ticket_type text;
-alter table support_tickets add column if not exists queue text;
-alter table support_tickets add column if not exists language text;
-alter table support_tickets add column if not exists version int;
-alter table support_tickets add column if not exists tag_1 text;
-alter table support_tickets add column if not exists tag_2 text;
-alter table support_tickets add column if not exists tag_3 text;
-alter table support_tickets add column if not exists tag_4 text;
-alter table support_tickets add column if not exists tag_5 text;
-alter table support_tickets add column if not exists tag_6 text;
-alter table support_tickets add column if not exists tag_7 text;
-alter table support_tickets add column if not exists tag_8 text;
 
 create index if not exists idx_support_tickets_created_at on support_tickets (created_at desc);
 create index if not exists idx_support_tickets_status on support_tickets (status);
