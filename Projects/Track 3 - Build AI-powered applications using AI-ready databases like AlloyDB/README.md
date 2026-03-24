@@ -190,12 +190,34 @@ export SERVICE_NAME="alloydb-nl"
 
 # Optional: override defaults
 # export SEED_LIMIT="5000"
-# export APP_NL_TO_SQL_TEMPLATE="select generated_sql from alloydb_ai_nl('{question}')"
+# export APP_NL_TO_SQL_TEMPLATE="select alloydb_ai_nl.get_sql('track3_cfg','{question}') ->> 'sql'"
 
 bash scripts/one_click_provision.sh
 ```
 
 This mode auto-generates `DB_PASSWORD` if you do not provide one.
+
+#### Option 0B: One-click deploy using existing AlloyDB (no new cluster)
+
+```bash
+export PROJECT_ID="your-project-id"
+export REGION="us-central1"
+export SERVICE_NAME="alloydb-nl"
+
+export DB_HOST="your-existing-alloydb-private-ip"
+export DB_PORT="5432"
+export DB_NAME="postgres"
+export DB_USER="postgres"
+export DB_PASSWORD="your-db-password"
+
+export AUTO_PROVISION="false"
+export SEED_LIMIT="5000"
+export APP_NL_TO_SQL_TEMPLATE="select alloydb_ai_nl.get_sql('track3_cfg','{question}') ->> 'sql'"
+
+bash scripts/one_click_provision.sh
+```
+
+This mode skips AlloyDB provisioning and only runs setup, seed, and Cloud Run deploy.
 
 #### Option A: Fully automated (provision + configure + seed + deploy)
 
@@ -247,7 +269,7 @@ To use true AlloyDB AI NL (instead of fallback SQL), confirm function compatibil
 Example (only if valid in your instance):
 
 ```bash
-export APP_NL_TO_SQL_TEMPLATE="select generated_sql from alloydb_ai_nl('{question}')"
+export APP_NL_TO_SQL_TEMPLATE="select alloydb_ai_nl.get_sql('track3_cfg','{question}') ->> 'sql'"
 ```
 
 What to do if NL function is unavailable:

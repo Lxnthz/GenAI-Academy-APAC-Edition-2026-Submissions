@@ -1,17 +1,46 @@
--- AlloyDB AI Natural Language setup placeholders.
--- Update these statements to match the exact syntax for your AlloyDB version.
+-- Track 3 default AlloyDB AI NL setup.
+-- This script is intentionally defensive so setup can continue even when
+-- AlloyDB AI NL functions differ across versions.
 
--- Example extension enablement pattern (adjust if required):
--- create extension if not exists google_ml_integration cascade;
+do $$
+begin
+	execute 'create extension if not exists alloydb_ai_nl cascade';
+exception
+	when others then
+		raise notice 'alloydb_ai_nl extension setup skipped: %', sqlerrm;
+end $$;
 
--- Example conceptual mappings for this dataset:
--- "urgent" -> urgency_score >= 70
--- "unresolved" -> status <> 'closed'
--- "payment issue" -> category = 'billing'
+do $$
+begin
+	perform alloydb_ai_nl.g_create_configuration('track3_cfg');
+exception
+	when others then
+		raise notice 'g_create_configuration skipped: %', sqlerrm;
+end $$;
 
--- The application reads APP_NL_TO_SQL_TEMPLATE from env.
--- Set it to the SQL statement that returns a generated SQL text as first column.
--- Example template:
--- select generated_sql from alloydb_ai_nl('{question}')
+do $$
+begin
+	perform alloydb_ai_nl.generate_schema_context('track3_cfg');
+exception
+	when others then
+		raise notice 'generate_schema_context skipped: %', sqlerrm;
+end $$;
 
-select 'Update this file with AlloyDB AI NL setup for your project version.' as note;
+do $$
+begin
+	perform alloydb_ai_nl.apply_generated_schema_context('track3_cfg');
+exception
+	when others then
+		raise notice 'apply_generated_schema_context skipped: %', sqlerrm;
+end $$;
+
+do $$
+declare
+	generated_sql text;
+begin
+	generated_sql := alloydb_ai_nl.get_sql('track3_cfg', 'show incident tickets') ->> 'sql';
+	raise notice 'track3_cfg sample SQL: %', generated_sql;
+exception
+	when others then
+		raise notice 'sample get_sql skipped: %', sqlerrm;
+end $$;

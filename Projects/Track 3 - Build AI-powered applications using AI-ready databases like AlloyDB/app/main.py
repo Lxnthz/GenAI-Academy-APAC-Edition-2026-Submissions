@@ -104,7 +104,7 @@ def seed_database():
             if result and result[0]["cnt"] > 0:
                 print(f"✓ Database already seeded ({result[0]['cnt']} rows)")
                 return
-        except:
+        except Exception:
             pass  # Table might not have data yet, continue to load
         
         # Load CSV data
@@ -334,25 +334,25 @@ def fallback_sql_from_question(question):
     limit 25
     """
 
-
 def nl_to_sql(question):
     template = os.environ.get("APP_NL_TO_SQL_TEMPLATE", "").strip()
     if not template:
-        return fallback_sql_from_question(question), "fallback"
+        return fallback_sql_from_question(question), "fallback_pattern"
 
     nl_sql = template.format(question=question.replace("'", "''"))
-    try:
-        rows = run_sql(nl_sql)
-        if not rows:
-            return fallback_sql_from_question(question), "fallback"
+    rows = run_sql(nl_sql)
+    if not rows:
+        raise RuntimeError(
+            "AlloyDB NL call returned no rows. Verify extension/config/template setup."
+        )
 
-        first_value = next(iter(rows[0].values()))
-        if not first_value:
-            return fallback_sql_from_question(question), "fallback"
+    first_value = next(iter(rows[0].values()))
+    if not first_value:
+        raise RuntimeError(
+            "AlloyDB NL call returned an empty SQL string. Verify NL configuration."
+        )
 
-        return str(first_value), "alloydb_ai"
-    except Exception:
-        return fallback_sql_from_question(question), "fallback"
+    return str(first_value), "alloydb_ai"
 
 
 @app.get("/health")
@@ -701,7 +701,13 @@ def query():
     if not question:
         return jsonify({"error": "question is required"}), 400
 
-    generated_sql, source = nl_to_sql(question)
+    nl_warning = None
+    try:
+      generated_sql, source = nl_to_sql(question)
+    except Exception as exc:
+      generated_sql = fallback_sql_from_question(question)
+      source = "fallback_pattern"
+      nl_warning = f"Native AlloyDB NL failed: {exc}"
 
     try:
         rows = run_sql(generated_sql)
@@ -712,6 +718,7 @@ def query():
                 "source": source,
                 "rows": rows,
                 "row_count": len(rows),
+            "nl_warning": nl_warning,
             }
         )
     except Exception as exc:
@@ -720,6 +727,7 @@ def query():
                 "question": question,
                 "generated_sql": generated_sql,
                 "source": source,
+            "nl_warning": nl_warning,
                 "error": str(exc),
             }
         ), 500
